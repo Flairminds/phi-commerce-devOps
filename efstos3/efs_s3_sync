@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Set the current month and previous month variables
+CURRENT_MONTH=$(date +'%Y-%m')
+PREVIOUS_MONTH=$(date -d '2 months ago' +'%Y-%m')
+
+# EFS and S3 service mapping files
+EFS_SERVICE_FILE="efs_service.txt"
+S3_SERVICE_FILE="s3_service.txt"
+
+# EFS base path
+EFS_BASE_PATH="/mnt/efs/phicom/logs"
+
+# S3 base path
+S3_BUCKET="s3://phicom-efs-s3-sync/logs"
+
+# Sync data for each service
+while IFS= read -r efs_service && IFS= read -r s3_service <&3; do
+    # Map service name
+    efs_service=$(echo "$efs_service")
+    s3_service=$(echo "$s3_service")
+
+    # Set EFS and S3 paths
+    EFS_PATH="$EFS_BASE_PATH/$efs_service/$PREVIOUS_MONTH"
+    S3_PATH="$S3_BUCKET/$s3_service/"
+
+    # Sync data for the service from the previous month
+    for efs_subpath in $(ls -d "$EFS_PATH"-*); do
+        formatted_day=$(basename "$efs_subpath")
+        aws s3 sync "$efs_subpath" "$S3_PATH$formatted_day"
+    done
+
+done <"$EFS_SERVICE_FILE" 3<"$S3_SERVICE_FILE"
